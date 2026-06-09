@@ -23,6 +23,18 @@ local PERMISSION_OPTION_LABELS = {
 
 local TITLE_FENCE = "`````"
 
+--- Tool call kinds that operate on a specific file.
+--- For these, we surface `file_path` in the header when the provider's
+--- title doesn't already include it.
+local FILE_RELATED_KINDS = {
+    edit = true,
+    create = true,
+    write = true,
+    delete = true,
+    move = true,
+    read = true,
+}
+
 --- @class agentic.ui.MessageWriter.HighlightRange
 --- @field type "comment"|"old"|"new"|"new_modification" Type of highlight to apply
 --- @field line_index integer Line index relative to returned lines (0-based)
@@ -679,6 +691,21 @@ end
 --- @return string argument
 function MessageWriter:_build_header_argument(tool_call_block)
     local argument = tool_call_block.argument or ""
+    local file_path = tool_call_block.file_path
+
+    -- Surface file_path in the header for file-related tool calls when the
+    -- provider's title doesn't already reference it. Many ACP providers send
+    -- generic titles (e.g. "Edit file") that hide which file is affected.
+    if
+        file_path
+        and file_path ~= ""
+        and tool_call_block.kind
+        and FILE_RELATED_KINDS[tool_call_block.kind]
+        and not argument:find(file_path, 1, true)
+        and not argument:find(vim.fn.fnamemodify(file_path, ":t"), 1, true)
+    then
+        argument = file_path
+    end
 
     -- Sanitize argument to prevent newlines in the header line
     -- nvim_buf_set_lines doesn't accept array items with embedded newlines
