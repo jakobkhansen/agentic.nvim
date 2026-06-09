@@ -294,6 +294,16 @@ function Agentic.switch_provider(opts)
     end)
 end
 
+--- Show the agent mode selector for the current tab's session.
+--- Same flow as the widget's `change_mode` keymap, but available as a
+--- public API so users can bind it to any key (e.g. `<leader>am`).
+--- No-op if the provider does not support mode switching.
+function Agentic.switch_mode()
+    SessionRegistry.get_session_for_tab_page(nil, function(session)
+        session:switch_mode()
+    end)
+end
+
 --- Resolve the currently focused permission request by option kind.
 --- No-op if no permission is pending or the kind is unavailable.
 --- @private

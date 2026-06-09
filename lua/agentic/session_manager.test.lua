@@ -1756,5 +1756,146 @@ describe("agentic.SessionManager", function()
             -- Should not throw an error
             handlers.on_request_permission(mock_request, mock_callback)
         end)
+
+        it(
+            "auto-resolves callback with matched optionId when hook returns a kind",
+            function()
+                Config.hooks.on_request_permission = function()
+                    return "allow_once"
+                end
+
+                local add_request_spy =
+                    spy.on(session.permission_manager, "add_request")
+                local show_diff_spy =
+                    spy.on(session, "_show_diff_in_buffer")
+                local resolve_spy = spy.new(function() end)
+
+                local handlers = session:_build_handlers()
+                local mock_request = {
+                    sessionId = "test-session-123",
+                    toolCall = {
+                        toolCallId = "tool-2",
+                        kind = "edit",
+                        title = "Edit file",
+                    },
+                    options = {
+                        {
+                            optionId = "opt-allow",
+                            name = "Allow Once",
+                            kind = "allow_once",
+                        },
+                        {
+                            optionId = "opt-reject",
+                            name = "Reject Once",
+                            kind = "reject_once",
+                        },
+                    },
+                }
+
+                handlers.on_request_permission(mock_request, resolve_spy)
+
+                assert.spy(resolve_spy).was.called(1)
+                assert.spy(resolve_spy).was.called_with("opt-allow")
+                assert.spy(add_request_spy).was.called(0)
+                assert.spy(show_diff_spy).was.called(0)
+            end
+        )
+
+        it(
+            "auto-resolves with reject_once when hook returns reject_once",
+            function()
+                Config.hooks.on_request_permission = function()
+                    return "reject_once"
+                end
+
+                local add_request_spy =
+                    spy.on(session.permission_manager, "add_request")
+                local resolve_spy = spy.new(function() end)
+
+                local handlers = session:_build_handlers()
+                local mock_request = {
+                    sessionId = "test-session-123",
+                    toolCall = { toolCallId = "tool-3", kind = "execute" },
+                    options = {
+                        {
+                            optionId = "opt-allow",
+                            name = "Allow Once",
+                            kind = "allow_once",
+                        },
+                        {
+                            optionId = "opt-reject",
+                            name = "Reject Once",
+                            kind = "reject_once",
+                        },
+                    },
+                }
+
+                handlers.on_request_permission(mock_request, resolve_spy)
+
+                assert.spy(resolve_spy).was.called(1)
+                assert.spy(resolve_spy).was.called_with("opt-reject")
+                assert.spy(add_request_spy).was.called(0)
+            end
+        )
+
+        it(
+            "falls back to UI when hook return has no matching option kind",
+            function()
+                Config.hooks.on_request_permission = function()
+                    return "allow_always"
+                end
+
+                local add_request_spy =
+                    spy.on(session.permission_manager, "add_request")
+                local resolve_spy = spy.new(function() end)
+
+                local handlers = session:_build_handlers()
+                local mock_request = {
+                    sessionId = "test-session-123",
+                    toolCall = { toolCallId = "tool-4", kind = "edit" },
+                    options = {
+                        {
+                            optionId = "opt-allow",
+                            name = "Allow Once",
+                            kind = "allow_once",
+                        },
+                    },
+                }
+
+                handlers.on_request_permission(mock_request, resolve_spy)
+
+                assert.spy(resolve_spy).was.called(0)
+                assert.spy(add_request_spy).was.called(1)
+            end
+        )
+
+        it(
+            "falls back to UI when hook returns nil (observation-only)",
+            function()
+                Config.hooks.on_request_permission = function() end
+
+                local add_request_spy =
+                    spy.on(session.permission_manager, "add_request")
+                local resolve_spy = spy.new(function() end)
+
+                local handlers = session:_build_handlers()
+                local mock_request = {
+                    sessionId = "test-session-123",
+                    toolCall = { toolCallId = "tool-5", kind = "edit" },
+                    options = {
+                        {
+                            optionId = "opt-allow",
+                            name = "Allow Once",
+                            kind = "allow_once",
+                        },
+                    },
+                }
+
+                handlers.on_request_permission(mock_request, resolve_spy)
+
+                assert.spy(resolve_spy).was.called(0)
+                assert.spy(add_request_spy).was.called(1)
+            end
+        )
     end)
 end)

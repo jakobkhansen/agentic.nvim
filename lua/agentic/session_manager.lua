@@ -51,6 +51,47 @@ function P.invoke_hook(hook_name, data)
     end
 end
 
+--- Synchronously invoke the on_request_permission hook and return its decision.
+--- Unlike P.invoke_hook (which fires-and-forgets via vim.schedule), this must
+--- run inline so the caller can short-circuit the permission UI when the hook
+--- returns a decision string.
+--- @param data agentic.UserConfig.RequestPermissionData
+--- @return agentic.UserConfig.PermissionDecision|nil decision
+function P.try_resolve_permission_via_hook(data)
+    local hook = Config.hooks and Config.hooks.on_request_permission
+
+    if type(hook) ~= "function" then
+        return nil
+    end
+
+    local ok, result = pcall(hook, data)
+    if not ok then
+        Logger.debug(
+            string.format("Hook 'on_request_permission' error: %s", result)
+        )
+        return nil
+    end
+
+    if type(result) == "string" then
+        return result
+    end
+
+    return nil
+end
+
+--- Find the optionId in a permission request whose kind matches the decision.
+--- @param options agentic.acp.PermissionOption[]
+--- @param kind agentic.UserConfig.PermissionDecision
+--- @return string|nil option_id
+function P.find_permission_option_id(options, kind)
+    for _, opt in ipairs(options) do
+        if opt.kind == kind then
+            return opt.optionId
+        end
+    end
+    return nil
+end
+
 --- @class agentic.SessionManager
 --- @field session_id? string
 --- @field tab_page_id integer
@@ -518,6 +559,16 @@ function SessionManager:_on_tool_call_update(tool_call_update)
     if not self.permission_manager:has_pending() then
         self:_start_spinner("generating")
     end
+end
+
+--- Show the mode selector UI for this session.
+--- Routes the chosen mode through the same change pipeline used by the
+--- widget keymap, so legacy and modern providers are handled identically.
+--- No-op when the provider does not support modes (the selector notifies).
+function SessionManager:switch_mode()
+    self.config_options:show_mode_selector(function(mode_id, is_legacy)
+        self:_handle_mode_change(mode_id, is_legacy)
+    end)
 end
 
 --- Send the newly selected mode to the agent and handle the response
@@ -998,13 +1049,35 @@ function SessionManager:_build_handlers()
         end,
 
         on_request_permission = function(request, callback)
-            P.invoke_hook("on_request_permission", {
+            self.status_animation:stop()
+
+            local decision = P.try_resolve_permission_via_hook({
                 request = request,
                 session_id = self.session_id,
                 tab_page_id = self.tab_page_id,
             })
 
-            self.status_animation:stop()
+            if decision then
+                local option_id =
+                    P.find_permission_option_id(request.options, decision)
+
+                if option_id then
+                    callback(option_id)
+
+                    if not self.permission_manager:has_pending() then
+                        self:_start_spinner("generating")
+                    end
+
+                    return
+                end
+
+                Logger.debug(
+                    string.format(
+                        "on_request_permission hook returned '%s' but no matching option in request.options; falling back to UI",
+                        decision
+                    )
+                )
+            end
 
             local function wrapped_callback(option_id)
                 callback(option_id)

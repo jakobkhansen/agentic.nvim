@@ -64,6 +64,16 @@
 --- @field session_id string The ACP session ID
 --- @field tab_page_id number The tabpage ID
 
+--- Decision returned by on_request_permission to auto-resolve without UI.
+--- Returning nil (or anything else) falls through to the inline buttons.
+--- The decision is only honored if a matching option kind exists in
+--- `request.options`; otherwise the UI is shown as a safe fallback.
+--- @alias agentic.UserConfig.PermissionDecision
+--- | "allow_once"
+--- | "allow_always"
+--- | "reject_once"
+--- | "reject_always"
+
 --- @class agentic.UserConfig.KeymapEntry
 --- @field [1] string The key binding
 --- @field mode string|string[] The mode(s) for this binding
@@ -209,7 +219,7 @@
 --- @field on_response_complete? fun(data: agentic.UserConfig.ResponseCompleteData): nil
 --- @field on_session_update? fun(data: agentic.UserConfig.SessionUpdateData): nil
 --- @field on_file_edit? fun(data: agentic.UserConfig.FileEditData): nil
---- @field on_request_permission? fun(data: agentic.UserConfig.RequestPermissionData): nil
+--- @field on_request_permission? fun(data: agentic.UserConfig.RequestPermissionData): agentic.UserConfig.PermissionDecision|nil
 
 --- Provider switcher UI behavior
 --- @class agentic.UserConfig.ProviderSwitcher

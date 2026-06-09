@@ -67,14 +67,15 @@ agentic.new_session()	agentic.txt	/*agentic.new_session()*
 agentic.new_session_with_provider()	agentic.txt	/*agentic.new_session_with_provider()*
 agentic.nvim	agentic.txt	/*agentic.nvim*
 agentic.open()	agentic.txt	/*agentic.open()*
-agentic.permission_allow()	agentic.txt	/*agentic.permission_allow()*
 agentic.permission_allow_always()	agentic.txt	/*agentic.permission_allow_always()*
+agentic.permission_allow_once()	agentic.txt	/*agentic.permission_allow_once()*
 agentic.permission_reject()	agentic.txt	/*agentic.permission_reject()*
 agentic.restore_session()	agentic.txt	/*agentic.restore_session()*
 agentic.restore_session_by_id()	agentic.txt	/*agentic.restore_session_by_id()*
 agentic.rotate_layout()	agentic.txt	/*agentic.rotate_layout()*
 agentic.setup()	agentic.txt	/*agentic.setup()*
 agentic.stop_generation()	agentic.txt	/*agentic.stop_generation()*
+agentic.switch_mode()	agentic.txt	/*agentic.switch_mode()*
 agentic.switch_provider()	agentic.txt	/*agentic.switch_provider()*
 agentic.toggle()	agentic.txt	/*agentic.toggle()*
 agentic.txt	agentic.txt	/*agentic.txt*

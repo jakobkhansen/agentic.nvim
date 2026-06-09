@@ -544,6 +544,7 @@ Negative values are clamped to 0. Diff tool calls keep full header-only titles.
 | `:lua require("agentic").restore_session()`                  | Show provider's session picker to restore a previous session      |
 | `:lua require("agentic").restore_session_by_id(session_id)`  | Restore a session by its ID                                       |
 | `:lua require("agentic").switch_provider()`                  | Switch ACP provider mid-session (shows picker, preserves history) |
+| `:lua require("agentic").switch_mode()`                      | Show agent mode selector (provider must support modes)            |
 | `:lua require("agentic").rotate_layout()`                    | Rotate window position through layouts (right → bottom → left)    |
 | `:lua require("agentic").permission_allow_once()`            | Allow the currently pending tool call (allow once)                 |
 | `:lua require("agentic").permission_allow_always()`          | Allow the currently pending tool call (allow always)              |
@@ -942,14 +943,27 @@ integrating with other plugins.
 
       -- Called when the agent needs permission to execute a tool (e.g. shell command).
       -- Fires for each pending permission request.
+      --
+      -- Return one of `"allow_once"`, `"allow_always"`, `"reject_once"`, or
+      -- `"reject_always"` to auto-resolve without showing the inline buttons.
+      -- Return nil (or omit the return) for observation-only — the UI then
+      -- prompts as usual. The decision is only honored if a matching option
+      -- kind exists in `data.request.options`; otherwise the UI is shown as a
+      -- safe fallback.
       on_request_permission = function(data)
         -- data.request: table - The ACP permission request object
         -- data.request.toolCall: table - contains .kind, .title, etc.
+        -- data.request.options: table - { { optionId, name, kind } } available
         -- data.session_id: string - The ACP session ID
         -- data.tab_page_id: number - The Neovim tabpage ID
-        local tool = data.request.toolCall
-        local label = tool.title or tool.kind or "action"
-        vim.notify("Agent needs permission for: " .. label)
+        local tc = data.request.toolCall
+        if tc.kind == "read" or tc.kind == "search" then
+          return "allow_once"
+        end
+        if tc.title and tc.title:match("rm %-rf") then
+          return "reject_once"
+        end
+        -- nil: fall through to the inline Allow/Reject buttons
       end,
     }
   }
