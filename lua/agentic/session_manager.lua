@@ -5,6 +5,7 @@
 -- ensuring that the new session is properly set up and all the previous messages are sent to the new agent provider without duplicating them in the chat widget
 
 local ACPPayloads = require("agentic.acp.acp_payloads")
+local BufHelpers = require("agentic.utils.buf_helpers")
 local ChatHistory = require("agentic.ui.chat_history")
 local Config = require("agentic.config")
 local DiffPreview = require("agentic.ui.diff_preview")
@@ -17,7 +18,9 @@ local SlashCommands = require("agentic.acp.slash_commands")
 local P = {}
 
 --- Tool call kinds that mutate files on disk.
---- When these complete, buffers must be reloaded via checktime.
+--- When these complete, the corresponding buffer must be force-reloaded:
+--- vim.cmd.checktime() alone only reloads when 'autoread' is on, otherwise
+--- it just emits a W11 warning and leaves the buffer stale until :edit.
 local FILE_MUTATING_KINDS = {
     edit = true,
     create = true,
@@ -25,6 +28,44 @@ local FILE_MUTATING_KINDS = {
     delete = true,
     move = true,
 }
+
+--- Force-reload the buffer for the given file path so its content matches
+--- what was just written to disk by the agent. Without this, users who
+--- don't have 'autoread' enabled would have to manually :edit the file
+--- to see the agent's changes (vim.cmd.checktime() only warns in that case).
+--- @param file_path string|nil
+local function reload_buffer_from_disk(file_path)
+    if type(file_path) ~= "string" or file_path == "" then
+        return
+    end
+
+    local abs_path = FileSystem.to_absolute_path(file_path)
+    local bufnr = vim.fn.bufnr(abs_path)
+    if bufnr == -1 or not vim.api.nvim_buf_is_loaded(bufnr) then
+        return
+    end
+
+    -- Skip non-file buffers (scratch, help, terminal, etc.) where :edit
+    -- is meaningless or destructive.
+    if vim.bo[bufnr].buftype ~= "" then
+        return
+    end
+
+    -- Skip buffers the user has unsaved changes in; reloading would lose them.
+    -- The diff view sets modifiable=false so the user can't have typed there,
+    -- but a buffer could be dirty from a prior interaction.
+    if vim.bo[bufnr].modified then
+        return
+    end
+
+    pcall(function()
+        BufHelpers.execute_on_buffer(bufnr, function()
+            local view = vim.fn.winsaveview()
+            vim.cmd("silent! edit")
+            vim.fn.winrestview(view)
+        end)
+    end)
+end
 
 --- @param destination string
 --- @return string escaped_destination
@@ -526,6 +567,11 @@ function SessionManager:_on_tool_call_update(tool_call_update)
 
         if tracker and tracker.kind and FILE_MUTATING_KINDS[tracker.kind] then
             vim.cmd.checktime()
+
+            -- checktime() above only reloads when 'autoread' is enabled;
+            -- explicitly reload the edited file so the user sees the new
+            -- content without having to run :edit manually.
+            reload_buffer_from_disk(tracker.file_path)
 
             DiffPreview.cleanup_suggestion_buffer(tracker.file_path)
 
